@@ -10,30 +10,38 @@ app.setup = function() {
 };
 
 app.populateEvents = function(url, params) {
-  var oneWeekAgo = (function(date) {
-    date.setDate(date.getDate() - 7);
-    return date;
-  })(new Date());
-
   var conditions = [
     app.q.notNull('opened'),
-    // app.q.greaterThan('opened', oneWeekAgo.toISOString()),
+    app.q.eq('status', 'open'),
+    app.q.greaterThan('opened', app.utils.daysAgoISO(2)),
   ];
 
   var params = {
-    '$limit': 100,
-    '$order': 'opened DESC',
-    '$where': conditions.join(app.q.and),
+    '$order': app.q.desc('opened'),
+    '$where': app.q.and(conditions),
   };
 
   $.getJSON(url, params, function(geojson) {
-    app.featureLayer.setGeoJSON(geojson);
+    app.featureLayer.setGeoJSON(geojson).eachLayer(app.bindPopup);
   });
 };
 
+app.bindPopup = (function() {
+  var popupProperty = _.template("<li><strong><%= name %></strong>: <%= value %></li>");
+  var popup = _.template("<ul><%= list.join('') %></ul>");
+
+  return function(layer) {
+    var list = _.map(layer.feature.properties, function(value, name) {
+      return popupProperty({name: name, value: value});
+    });
+
+    layer.bindPopup(popup({list: list}));
+  };
+})()
+
 app.setupMap = function() {
   var options = {
-    zoom: 13,
+    zoom: 12,
     center: [37.7577, -122.4376],
     tileLayer: { detectRetina: true },
   };
@@ -43,13 +51,52 @@ app.setupMap = function() {
   app.featureLayer = L.mapbox.featureLayer().addTo(map);
 };
 
-app.q = {
-  and: ' AND ',
-  or: ' OR ',
-  asc: function(attr) { return attr+' ASC'; },
-  desc: function(attr) { return attr+' DESC'; },
-  isNull: function(attr) { return attr+' IS NULL'; },
-  notNull: function(attr) { return attr+' IS NOT NULL'; },
-  greaterThan: function(attr, val) { return attr+' >= '+val; },
-  lessThan: function(attr, val) { return attr+' <= '+val },
+app.utils = {
+  daysAgoISO: function(count) {
+    var date = (function(d) {
+      d.setDate(d.getDate() - count);
+      return d;
+    })(new Date());
+
+    return date.toISOString();
+  },
 };
+
+app.q = (function() {
+  var quote = function(v) {
+    return "'"+v+"'";
+  };
+
+  var AND = ' AND ';
+  var OR = ' OR ';
+
+  return {
+    and: function(conds) {
+      return conds.join(AND);
+    },
+    or: function(conds) {
+      return conds.join(OR);
+    },
+    asc: function(attr) { 
+      return attr+' ASC';
+    },
+    desc: function(attr) {
+      return attr+' DESC';
+    },
+    eq: function(attr, value) {
+      return attr+' = '+quote(value);
+    },
+    isNull: function(attr) {
+      return attr+' IS NULL';
+    },
+    notNull: function(attr) {
+      return attr+' IS NOT NULL';
+    },
+    greaterThan: function(attr, value) {
+      return attr+' >= '+quote(value);
+    },
+    lessThan: function(attr, value) {
+      return attr+' <= '+quote(value);
+    },
+  };
+})();
