@@ -1,5 +1,4 @@
 require 'dotenv';Dotenv.load
-require 'sinatra'
 require 'spy_glass'
 
 proxy = SpyGlass::Proxy.new ENV.fetch('HOST') do |config|
@@ -25,6 +24,12 @@ proxy = SpyGlass::Proxy.new ENV.fetch('HOST') do |config|
 
     { 'type' => 'FeatureCollection', 'features' => features }
   end
+end
+
+require 'sinatra'
+
+get '/' do
+  erb :index
 end
 
 get('*', provides: :json, &proxy)
